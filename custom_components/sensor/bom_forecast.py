@@ -23,7 +23,7 @@ from homeassistant.util import Throttle
 import homeassistant.helpers.config_validation as cv
 
 _FIND_QUERY = "./forecast/area[@type='location']/forecast-period[@index='{}']/*[@type='{}']"
-_FIND_QUERY_2 = "./forecast/area[@type='metropolitan']/forecast-period[@index='{}']/text[@type='forecast']"
+_FIND_QUERY_2 = "./forecast/area[@type='metropolitan']/forecast-period[@index='{}']/text[@type='{}']"
             
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,6 +177,8 @@ SENSOR_TYPES = {
     'possible_rainfall': ['precipitation_range', 'Possible Rainfall', 'mm', 'mdi:water'],
     'summary': ['precis', 'Summary', None, 'mdi:text'],
     'detailed_summary': ['forecast', 'Detailed Summary', None, 'mdi:text'],
+    'fire_danger': ['fire_danger', 'Fire Danger', None, 'mdi:text'],
+    'uv_alert': ['uv_alert', 'UV Alert', None, 'mdi:text'],
     'icon': ['forecast_icon_code', 'Icon', None, None]
 }
 
@@ -388,29 +390,38 @@ class BOMForecastData:
 
     def get_reading(self, condition, index):
         """Return the value for the given condition."""
-        if condition == 'detailed_summary':
-            if PRODUCT_ID_LAT_LON_LOCATION[self._product_id][3] == 'City':
-                det_summ = self._data.find(_FIND_QUERY_2.format(index)).text
-            else:
-                det_summ = self._data.find(_FIND_QUERY.format(index, 'forecast')).text
-
-            if len(det_summ) > 255:
-                det_summ = det_summ[:255]
-            return det_summ
         
-        find_query = (_FIND_QUERY.format(index, SENSOR_TYPES[condition][0]))
-        state = self._data.find(find_query)
+        # handle the values stored in the first area of data
+        if condition in ('detailed_summary','fire_danger','uv_alert'):
+        
+            if PRODUCT_ID_LAT_LON_LOCATION[self._product_id][3] == 'City':
+                val = self._data.find(_FIND_QUERY_2.format(index, SENSOR_TYPES[condition][0]))
+            else:
+                val = self._data.find(_FIND_QUERY.format(index, SENSOR_TYPES[condition][0]))
+
+            if val is None:
+                return GLOBAL_TEXT_IF_NO_VALUE
+            elif len(val.text) > 255:
+                return val.text[:255]
+            else:
+                return val.text
+        
+        # handle the values stored in the second area of data
+        val = self._data.find(_FIND_QUERY.format(index, SENSOR_TYPES[condition][0]))
         if condition == 'icon':
-            return ICON_MAPPING[state.text]
-        if state is None:
+            return ICON_MAPPING[val.text]
+            
+        if val is None:
             if condition == 'possible_rainfall':
                 return '0 mm'
-            return GLOBAL_TEXT_IF_NO_VALUE
-        return state.text
+            else:
+                return GLOBAL_TEXT_IF_NO_VALUE
+        else:
+            return val.text
 
     def get_issue_time_local(self):
         """Return the issue time of forecast."""
-        issue_time = self._data.find("./amoc/next-routine-issue-time-local")
+        issue_time = self._data.find("./amoc/issue-time-local")
         if issue_time is None:
             return GLOBAL_TEXT_IF_NO_VALUE
         else:
