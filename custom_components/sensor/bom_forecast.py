@@ -258,7 +258,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
             add_entities([BOMForecastSensorFriendly(bom_forecast_data, monitored_conditions,
             index, name, product_id, friendly_state_format)])
             
-    if mode in ('sensors', 'all'):
+    if mode in ('separate', 'all'):
         for index in range(start, config.get(CONF_DAYS)+1):
             for condition in monitored_conditions:    
                 add_entities([BOMForecastSensor(bom_forecast_data, condition,
