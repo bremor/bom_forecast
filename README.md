@@ -37,11 +37,11 @@ Configuration variables:
 - **name** (*Optional*): The name you would like to give to the weather forecast.
 - **forecast_days** (*Optional*): The number of days of forecast you would like, maximum is 6. If not given, defaults to 6.
 - **mode** (*Optional*): Specifies which sensors to create. 
-    'friendly' will only create one sensor per day of forecast, and will have all the forecast information as sensor attributes
+    'friendly' will only create one sensor per day of forecast, and will have all the forecast information as sensor attributes\n
     'separate' will create separate sensors for each value for each day as returned by the BOM data. 
     'all' returns both the friendly sensors and each individual sensor as well. 
     Default = 'friendly'.
 - **rest_of_today** (*Optional*): Would you like to create a sensor for the forecast for the rest of today. Defaults to true.
 - **friendly_state_format** (*Optional*): Friendly state format allows you to format the state of your forecast sensors when in friendly mode. For example, '{min} to {max}, {summary}' will display the state as '10 to 25, Cloudy'. Defaults to '{summary}'.
-**text_if_no_value** (*Optional*): Defines the text to be returned for a sensor if the BOM has not data available. Defaults to 'n/a'.
+- **text_if_no_value** (*Optional*): Defines the text to be returned for a sensor if the BOM has not data available. Defaults to 'n/a'.
 - **monitored_conditions** (*Required*): A list of the conditions to monitor.
