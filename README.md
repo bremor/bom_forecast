@@ -14,7 +14,6 @@ sensor:
     name: Melbourne
     forecast_days: 3
     rest_of_today: True
-    friendly: True
     mode: friendly
     friendly_state_format: '{max}, {summary}'
     text_if_no_value: '-'
