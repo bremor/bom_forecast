@@ -25,6 +25,8 @@ sensor:
       - 'possible_rainfall'
       - 'summary'
       - 'detailed_summary'
+      - 'fire_danger'
+      - 'uv_alert'
 ```
 
 To get the Product ID for any BOM city:
