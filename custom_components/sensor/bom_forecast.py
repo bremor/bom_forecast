@@ -23,7 +23,7 @@ from homeassistant.util import Throttle
 import homeassistant.helpers.config_validation as cv
 
 _FIND_QUERY = "./forecast/area[@type='location']/forecast-period[@index='{}']/*[@type='{}']"
-_FIND_QUERY_2 = "./forecast/area[@type='metropolitan']/forecast-period[@index='{}']/text[@type='forecast']"
+_FIND_QUERY_2 = "./forecast/area[@type='metropolitan']/forecast-period[@index='{}']/text[@type='{}']"
             
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,11 +38,15 @@ ATTR_START_TIME_LOCAL = 'start_time_local'
 CONF_ATTRIBUTION = 'Data provided by the Australian Bureau of Meteorology'
 CONF_DAYS = 'forecast_days'
 CONF_PRODUCT_ID = 'product_id'
+CONF_MODE = 'mode'
 CONF_REST_OF_TODAY = 'rest_of_today'
-CONF_FRIENDLY = 'friendly'
 CONF_FRIENDLY_STATE_FORMAT = 'friendly_state_format'
+CONF_TEXT_IF_NO_VALUE = 'text_if_no_value'
 
 MIN_TIME_BETWEEN_UPDATES = datetime.timedelta(minutes=60)
+
+### Global Variables
+GLOBAL_TEXT_IF_NO_VALUE = 'n/a'
 
 PRODUCT_ID_LAT_LON_LOCATION = {
     'IDD10150': [-12.47, 130.85, 'Darwin', 'City'],
@@ -173,6 +177,8 @@ SENSOR_TYPES = {
     'possible_rainfall': ['precipitation_range', 'Possible Rainfall', 'mm', 'mdi:water'],
     'summary': ['precis', 'Summary', None, 'mdi:text'],
     'detailed_summary': ['forecast', 'Detailed Summary', None, 'mdi:text'],
+    'fire_danger': ['fire_danger', 'Fire Danger', None, 'mdi:text'],
+    'uv_alert': ['uv_alert', 'UV Alert', None, 'mdi:text'],
     'icon': ['forecast_icon_code', 'Icon', None, None]
 }
 
@@ -212,22 +218,26 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MONITORED_CONDITIONS, default=[]):
         vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
     vol.Optional(CONF_DAYS, default=6): validate_days,
-    vol.Optional(CONF_FRIENDLY, default=False): cv.boolean,
+    vol.Optional(CONF_MODE, default='friendly'): cv.string,
     vol.Optional(CONF_FRIENDLY_STATE_FORMAT, default='{summary}'):  cv.string,
     vol.Optional(CONF_NAME, default=''): cv.string,
     vol.Optional(CONF_PRODUCT_ID, default=''): validate_product_id,
     vol.Optional(CONF_REST_OF_TODAY, default=True): cv.boolean,
+    vol.Optional(CONF_TEXT_IF_NO_VALUE, default='n/a'): cv.string,
 })
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
 
     days = config.get(CONF_DAYS)
-    friendly = config.get(CONF_FRIENDLY)
     friendly_state_format = config.get(CONF_FRIENDLY_STATE_FORMAT)
+    mode = config.get(CONF_MODE)
     monitored_conditions = config.get(CONF_MONITORED_CONDITIONS)
     name = config.get(CONF_NAME)
     product_id = config.get(CONF_PRODUCT_ID)
     rest_of_today = config.get(CONF_REST_OF_TODAY)
+    
+    global GLOBAL_TEXT_IF_NO_VALUE
+    GLOBAL_TEXT_IF_NO_VALUE = config.get(CONF_TEXT_IF_NO_VALUE)
 
     if not product_id:
         product_id = closest_product_id(
@@ -245,11 +255,12 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     else:
         start = 1
 
-    if friendly:
+    if mode in ('friendly', 'all'):
         for index in range(start, config.get(CONF_DAYS)+1):
             add_entities([BOMForecastSensorFriendly(bom_forecast_data, monitored_conditions,
             index, name, product_id, friendly_state_format)])
-    else:
+            
+    if mode in ('separate', 'all'):
         for index in range(start, config.get(CONF_DAYS)+1):
             for condition in monitored_conditions:    
                 add_entities([BOMForecastSensor(bom_forecast_data, condition,
@@ -352,7 +363,7 @@ class BOMForecastSensorFriendly(Entity):
         }
         for condition in self._conditions:
             attribute = self._bom_forecast_data.get_reading(condition, self._index)
-            if attribute != 'n/a':
+            if attribute != GLOBAL_TEXT_IF_NO_VALUE:
                 attr[SENSOR_TYPES[condition][1]] = attribute
         if self._name:
             attr['Name'] = self._name
@@ -379,29 +390,37 @@ class BOMForecastData:
 
     def get_reading(self, condition, index):
         """Return the value for the given condition."""
-        if condition == 'detailed_summary':
-            if PRODUCT_ID_LAT_LON_LOCATION[self._product_id][3] == 'City':
-                detailed_summary = self._data.find(_FIND_QUERY_2.format(index)).text
-            else:
-                detailed_summary = self._data.find(_FIND_QUERY.format(index, 'forecast')).text
-            return (detailed_summary[:251] + '...') if len(detailed_summary) > 251 else detailed_summary
         
-        find_query = (_FIND_QUERY.format(index, SENSOR_TYPES[condition][0]))
-        state = self._data.find(find_query)
+        # handle the values stored in the first area of data
+        if condition in ('detailed_summary','fire_danger','uv_alert'):
+        
+            if PRODUCT_ID_LAT_LON_LOCATION[self._product_id][3] == 'City':
+                detailed_summary = self._data.find(_FIND_QUERY_2.format(index, SENSOR_TYPES[condition][0])).text
+            else:
+                detailed_summary = self._data.find(_FIND_QUERY.format(index, SENSOR_TYPES[condition][0])).text
+            
+            if detailed_summary is None:
+                return GLOBAL_TEXT_IF_NO_VALUE
+            else:
+                return (detailed_summary[:251] + '...') if len(detailed_summary) > 251 else detailed_summary
+        
+        # handle the values stored in the second area of data
+        state = self._data.find(_FIND_QUERY.format(index, SENSOR_TYPES[condition][0]))
         if condition == 'icon':
             return ICON_MAPPING[state.text]
+            
         if state is None:
             if condition == 'possible_rainfall':
                 return '0 mm'
-            return 'n/a'
+            return GLOBAL_TEXT_IF_NO_VALUE
         s = state.text
         return (s[:251] + '...') if len(s) > 251 else s
 
     def get_issue_time_local(self):
         """Return the issue time of forecast."""
-        issue_time = self._data.find("./amoc/next-routine-issue-time-local")
+        issue_time = self._data.find("./amoc/issue-time-local")
         if issue_time is None:
-            return 'n/a'
+            return GLOBAL_TEXT_IF_NO_VALUE
         else:
             return issue_time.text
 
