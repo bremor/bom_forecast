@@ -1,3 +1,5 @@
+#This repository is no longer maintained. Please use https://github.com/DavidFW1960/bom_forecast for the most up to date and best maintained way to get BOM forecasts.
+
 The `bom forecast` sensor platform uses the [Australian Bureau of Meteorology (BOM)](http://www.bom.gov.au) as a source for forecast meteorological data.
 
 - Each sensor will be given the `device_id` of "bom [optionalname] friendlyname units"
